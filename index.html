@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BANKNIFTY SMA200 Breakout Strategy (Pine v5)</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <meta name="description" content="TradingView Pine Script strategy: BANKNIFTY SMA200 breakout with 5 partial exits (RR 1:2..1:6) and alert-candle logic on 1h timeframe." />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>BANKNIFTY SMA200 Breakout Strategy</h1>
+      <p class="subtitle">TradingView Pine v5 | 5 partial exits | 1h Alert Candle</p>
+    </header>
+
+    <section class="actions">
+      <button id="copyBtn">Copy Strategy</button>
+      <a id="downloadLink" href="/strategy.pine" download>Download .pine</a>
+    </section>
+
+    <section>
+      <pre id="code" class="code-block"><code>Loading strategy...</code></pre>
+    </section>
+
+    <section class="notes">
+      <h2>Usage</h2>
+      <ol>
+        <li>Open TradingView Pine Editor.</li>
+        <li>Copy the script and paste it into a new strategy.</li>
+        <li>Set the chart to any timeframe. The alert candle is detected on 1h internally.</li>
+        <li>Lots = 10 (5 pairs of 2 lots). Exits at RR 1:2, 1:3, 1:4, 1:5, 1:6 with SL = Alert Low.</li>
+      </ol>
+    </section>
+  </main>
+  <script src="/script.js"></script>
+</body>
+</html>

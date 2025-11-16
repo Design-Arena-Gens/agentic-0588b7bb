@@ -1,0 +1,101 @@
+//@version=5
+strategy("BANKNIFTY SMA200 Breakout RR Ladder (5 Pairs)",
+     overlay=true,
+     pyramiding=5,
+     initial_capital=1000000,
+     calc_on_every_tick=true,
+     process_orders_on_close=true,
+     commission_type=strategy.commission.percent,
+     commission_value=0.01)
+
+// ---- Inputs ----
+lengthSma   = input.int(200, "SMA Length", minval=1)
+alertTf     = input.timeframe("60", "Alert Timeframe (for SMA & Alert Candle)")
+lotsTotal   = input.int(10, "Total Lots (10 lots = 5 pairs)", minval=1)
+pairsCount  = 5
+pairLots    = math.max(1, math.floor(lotsTotal / pairsCount))
+
+// ---- Higher timeframe series (Alert TF) ----
+closeHTF = request.security(syminfo.tickerid, alertTf, close,  lookahead=barmerge.lookahead_off)
+highHTF  = request.security(syminfo.tickerid, alertTf, high,   lookahead=barmerge.lookahead_off)
+lowHTF   = request.security(syminfo.tickerid, alertTf, low,    lookahead=barmerge.lookahead_off)
+smaHTF   = request.security(syminfo.tickerid, alertTf, ta.sma(close, lengthSma), lookahead=barmerge.lookahead_off)
+
+// Crossing above SMA200 on Alert TF (defines the Alert Candle)
+crossUpHTF = ta.crossover(closeHTF, smaHTF)
+
+// Persist the most recent Alert Candle's high/low
+var float alertHigh  = na
+var float alertLow   = na
+var bool  pendingSig = false
+
+if crossUpHTF and strategy.position_size == 0
+    alertHigh  := highHTF
+    alertLow   := lowHTF
+    pendingSig := true
+
+riskPoints = na(alertHigh) or na(alertLow) ? na : alertHigh - alertLow
+
+// ---- Entry logic: Stop order above Alert Candle high ----
+// Place 5 stop entries (pairs) that will fill when price crosses above alertHigh
+if pendingSig and strategy.position_size == 0 and not na(alertHigh)
+    // Place/maintain stop entry orders for each pair
+    strategy.entry("L1", strategy.long, qty=pairLots, stop=alertHigh)
+    strategy.entry("L2", strategy.long, qty=pairLots, stop=alertHigh)
+    strategy.entry("L3", strategy.long, qty=pairLots, stop=alertHigh)
+    strategy.entry("L4", strategy.long, qty=pairLots, stop=alertHigh)
+    strategy.entry("L5", strategy.long, qty=pairLots, stop=alertHigh)
+
+    // Predefine exits for each pair: Stop = alertLow, Targets = R multiples of (alertHigh - alertLow)
+    if not na(riskPoints) and riskPoints > 0
+        t2 = alertHigh + 2.0 * riskPoints  // Pair 1 target (1:2)
+        t3 = alertHigh + 3.0 * riskPoints  // Pair 2 target (1:3)
+        t4 = alertHigh + 4.0 * riskPoints  // Pair 3 target (1:4)
+        t5 = alertHigh + 5.0 * riskPoints  // Pair 4 target (1:5)
+        t6 = alertHigh + 6.0 * riskPoints  // Pair 5 target (1:6)
+
+        strategy.exit("X1", from_entry="L1", stop=alertLow, limit=t2)
+        strategy.exit("X2", from_entry="L2", stop=alertLow, limit=t3)
+        strategy.exit("X3", from_entry="L3", stop=alertLow, limit=t4)
+        strategy.exit("X4", from_entry="L4", stop=alertLow, limit=t5)
+        strategy.exit("X5", from_entry="L5", stop=alertLow, limit=t6)
+
+// Once any position is opened, pending signal is considered consumed
+if strategy.position_size > 0
+    pendingSig := false
+
+// ---- Reset logic ----
+// If a new crossUp appears while flat, it overwrites the previous alert levels (handled above)
+// If we are flat and price made a new low below alertLow before entry, we keep waiting until a new crossUp occurs.
+
+// ---- Plots & Visuals ----
+plot(request.security(syminfo.tickerid, alertTf, ta.sma(close, lengthSma), lookahead=barmerge.lookahead_off),
+     title="SMA200 (Alert TF)", color=color.orange, linewidth=2)
+
+plot(alertHigh, "Alert High",  color=color.new(color.lime, 0), style=plot.style_linebr, linewidth=2)
+plot(alertLow,  "Alert Low",   color=color.new(color.red,  0), style=plot.style_linebr, linewidth=2)
+
+bgcolor(pendingSig ? color.new(color.teal, 90) : na)
+
+// ---- Alerts ----
+entryArmed = pendingSig and not na(alertHigh)
+entryCross = entryArmed and ta.crossover(high, alertHigh)
+
+alertcondition(crossUpHTF, title="New Alert Candle (Cross Above SMA)",
+     message="New Alert Candle detected on TF {{input:alertTf}}. Alert High={{plot("Alert High")}}, Low={{plot("Alert Low")}}")
+alertcondition(entryCross, title="Entry Triggered Above Alert High",
+     message="Entry triggered above Alert High. Managing 5 partial exits at 1:2,1:3,1:4,1:5,1:6 with SL at Alert Low.")
+
+// ---- Strategy Info Labels ----
+var label infoLbl = na
+if barstate.islastconfirmedhistory
+    txt = "Alert TF: " + alertTf + "\n" +
+          "Lots: " + str.tostring(lotsTotal) + " (" + str.tostring(pairsCount) + " pairs x " + str.tostring(pairLots) + ")\n" +
+          "Alert High: " + (na(alertHigh) ? "-" : str.tostring(alertHigh)) + "\n" +
+          "Alert Low:  " + (na(alertLow)  ? "-" : str.tostring(alertLow))
+    if na(infoLbl)
+        infoLbl := label.new(bar_index, high, txt, style=label.style_label_left, textcolor=color.white, color=color.new(color.blue, 60))
+    else
+        label.set_x(infoLbl, bar_index)
+        label.set_y(infoLbl, high)
+        label.set_text(infoLbl, txt)
